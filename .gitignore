@@ -1,0 +1,29 @@
+# Large input datasets
+data_input_nn/
+
+# Trained models / checkpoints
+*.pt
+*.pth
+*.ckpt
+*.joblib
+*.pkl
+
+# Temporary evaluation files
+*.mmap
+
+# Logs
+*.log
+nohup.out
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary/editor files
+.ipynb_checkpoints/
+.DS_Store
+*~
+
+# Large NumPy result arrays
+*_curves.npz
