@@ -1,0 +1,118 @@
+{
+  "format": "NAP-CNB split2 gzip v1",
+  "created_utc": "2026-10-20T13:17:42.842981+00:00",
+  "source": "Existing chunk_metadata used by the training loader; no reassignment.",
+  "split_codes": {
+    "0": "TRAIN",
+    "1": "VALIDATION",
+    "2": "TEST"
+  },
+  "encoding": "Four consecutive row IDs per byte, least-significant two bits first; each chunk padded independently.",
+  "datasets": 11,
+  "chunks": 14503,
+  "rows": 1449852950,
+  "source_csv_provenance": [
+    {
+      "dataset": "human/mhc-I/HLA-A/classification_human_mhc-I_HLA-A_blosum_ProtT5_chunks",
+      "path_relative_to_root": "human/mhc-I/HLA-A/classification_human_mhc-I_HLA-A_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 7353379213,
+      "mtime_ns": 1790073559553403471,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "human/mhc-I/HLA-B/classification_human_mhc-I_HLA-B_blosum_ProtT5_chunks",
+      "path_relative_to_root": "human/mhc-I/HLA-B/classification_human_mhc-I_HLA-B_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 7681911907,
+      "mtime_ns": 1790073970178916307,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "human/mhc-I/HLA-C/classification_human_mhc-I_HLA-C_blosum_ProtT5_chunks",
+      "path_relative_to_root": "human/mhc-I/HLA-C/classification_human_mhc-I_HLA-C_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 5522133151,
+      "mtime_ns": 1790080791038391753,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "human/mhc-II/HLA-DP/classification_human_mhc-II_HLA-DP_blosum_ProtT5_chunks",
+      "path_relative_to_root": "human/mhc-II/HLA-DP/classification_human_mhc-II_HLA-DP_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 3485564503,
+      "mtime_ns": 1790074176555202576,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "human/mhc-II/HLA-DQ/classification_human_mhc-II_HLA-DQ_blosum_ProtT5_chunks",
+      "path_relative_to_root": "human/mhc-II/HLA-DQ/classification_human_mhc-II_HLA-DQ_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 1611723363,
+      "mtime_ns": 1790074266608380972,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "human/mhc-II/HLA-DR/classification_human_mhc-II_HLA-DR_blosum_ProtT5_chunks",
+      "path_relative_to_root": "human/mhc-II/HLA-DR/classification_human_mhc-II_HLA-DR_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 5344664613,
+      "mtime_ns": 1790081105104680451,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "mouse/mhc-I/H2-D/classification_mouse_mhc-I_H2-D_blosum_ProtT5_chunks",
+      "path_relative_to_root": "mouse/mhc-I/H2-D/classification_mouse_mhc-I_H2-D_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 2912595503,
+      "mtime_ns": 1790076953253354978,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "mouse/mhc-I/H2-K/classification_mouse_mhc-I_H2-K_blosum_ProtT5_chunks",
+      "path_relative_to_root": "mouse/mhc-I/H2-K/classification_mouse_mhc-I_H2-K_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 4199981183,
+      "mtime_ns": 1790075049592002671,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "mouse/mhc-I/H2-L/classification_mouse_mhc-I_H2-L_blosum_ProtT5_chunks",
+      "path_relative_to_root": "mouse/mhc-I/H2-L/classification_mouse_mhc-I_H2-L_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 2146373,
+      "mtime_ns": 1790075049801010042,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "mouse/mhc-II/H2-IA/classification_mouse_mhc-II_H2-IA_blosum_ProtT5_chunks",
+      "path_relative_to_root": "mouse/mhc-II/H2-IA/classification_mouse_mhc-II_H2-IA_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 1191447143,
+      "mtime_ns": 1790075116952393113,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    },
+    {
+      "dataset": "mouse/mhc-II/H2-IE/classification_mouse_mhc-II_H2-IE_blosum_ProtT5_chunks",
+      "path_relative_to_root": "mouse/mhc-II/H2-IE/classification_mouse_mhc-II_H2-IE_blosum_ProtT5_chunks/master_split.csv",
+      "size_bytes": 28496587,
+      "mtime_ns": 1790075118799458776,
+      "note": "Size/mtime are provenance hints, not a hash or full CSV validation."
+    }
+  ],
+  "archive_sha256": {
+    "human__mhc-I__HLA-A__classification_human_mhc-I_HLA-A_blosum_ProtT5_chunks/part_0000.split2.gz": "b9d85123f4bda2697271ac6e795b308808e9ec6a36041f7f434c8de371a761c1",
+    "human__mhc-I__HLA-A__classification_human_mhc-I_HLA-A_blosum_ProtT5_chunks/part_0001.split2.gz": "789461965426c90b89c09b59880c7b10f4abf86666ed1c9b0e1707c419f5104e",
+    "human__mhc-I__HLA-A__classification_human_mhc-I_HLA-A_blosum_ProtT5_chunks/part_0002.split2.gz": "0f4fca1b5e49a11a580672d1b92edef6a8e42d9387cecd1fd90651b0ca6ad756",
+    "human__mhc-I__HLA-B__classification_human_mhc-I_HLA-B_blosum_ProtT5_chunks/part_0000.split2.gz": "f577d9ee1a99e87302b251348fbb7e08d24e525239f66a32829cbf9db6fbbc66",
+    "human__mhc-I__HLA-B__classification_human_mhc-I_HLA-B_blosum_ProtT5_chunks/part_0001.split2.gz": "9893570d229baf85b76363fedabc293945645651a709d5a12586060adc1b4a88",
+    "human__mhc-I__HLA-B__classification_human_mhc-I_HLA-B_blosum_ProtT5_chunks/part_0002.split2.gz": "cf772fd7ecd81a0a6170227b468f4539f52cbdee2e4177080be9553123140f5b",
+    "human__mhc-I__HLA-C__classification_human_mhc-I_HLA-C_blosum_ProtT5_chunks/part_0000.split2.gz": "c7ffa6eaaa4b174e83b47d26efe5ed834540ffc58c296e8e1411d0a97c27bae8",
+    "human__mhc-I__HLA-C__classification_human_mhc-I_HLA-C_blosum_ProtT5_chunks/part_0001.split2.gz": "0eced1e0616c9db5d328dba398dc0a034810ad2da10d5b09e15083e9711331c3",
+    "human__mhc-I__HLA-C__classification_human_mhc-I_HLA-C_blosum_ProtT5_chunks/part_0002.split2.gz": "f97334f81db1bc8ad0d3330c76fc88e203cf5fa7676f0d72388a7124725278ec",
+    "human__mhc-II__HLA-DP__classification_human_mhc-II_HLA-DP_blosum_ProtT5_chunks/part_0000.split2.gz": "139d952c262837daf8f5c89b799ac237b0a0165d2dafed340e9406f468fec27d",
+    "human__mhc-II__HLA-DP__classification_human_mhc-II_HLA-DP_blosum_ProtT5_chunks/part_0001.split2.gz": "12eef8671bf92ee2e737718a62009d42ad7224a17da18bbeb0b3e54c49233cc2",
+    "human__mhc-II__HLA-DQ__classification_human_mhc-II_HLA-DQ_blosum_ProtT5_chunks/part_0000.split2.gz": "9555edc313dd8949f3c0f0a430b7124f68cf2e177ce8f9397d7a358f95d502d4",
+    "human__mhc-II__HLA-DR__classification_human_mhc-II_HLA-DR_blosum_ProtT5_chunks/part_0000.split2.gz": "016b883308af7dfa1e02684f46acd698bb585684d9f4f32a6cdedb5a17756ed4",
+    "human__mhc-II__HLA-DR__classification_human_mhc-II_HLA-DR_blosum_ProtT5_chunks/part_0001.split2.gz": "0b41029304b3849410ea597e1ca541075fa3ad89eb18a6119c83ba2826fa077c",
+    "mouse__mhc-I__H2-D__classification_mouse_mhc-I_H2-D_blosum_ProtT5_chunks/part_0000.split2.gz": "aeb76e952171cd4914c4dbf069e46bb42640564901219fb182680edb12468554",
+    "mouse__mhc-I__H2-D__classification_mouse_mhc-I_H2-D_blosum_ProtT5_chunks/part_0001.split2.gz": "1e8c589080dfb640260302b6ade3442dbac38b5d92b42a32847e33b034935b07",
+    "mouse__mhc-I__H2-K__classification_mouse_mhc-I_H2-K_blosum_ProtT5_chunks/part_0000.split2.gz": "8d7a552e6e675e26280438b93452e6452eb9e2ffb414e99d006beca5d35392a1",
+    "mouse__mhc-I__H2-K__classification_mouse_mhc-I_H2-K_blosum_ProtT5_chunks/part_0001.split2.gz": "d8880035c89844824219d886a71edb2dee003e759c62fdeaf49c453fb2737476",
+    "mouse__mhc-I__H2-L__classification_mouse_mhc-I_H2-L_blosum_ProtT5_chunks/part_0000.split2.gz": "5fff6345eb1605521269f1fa30cc7ec4a1c199920ec090bc4dcf871a5c59ae51",
+    "mouse__mhc-II__H2-IA__classification_mouse_mhc-II_H2-IA_blosum_ProtT5_chunks/part_0000.split2.gz": "0e2cd47867552f9cea5f596db073ffad4f72136ca55458b3e1ebd6f2303c302c",
+    "mouse__mhc-II__H2-IE__classification_mouse_mhc-II_H2-IE_blosum_ProtT5_chunks/part_0000.split2.gz": "bdd2f25c3e65c70e3d33d8055e246da6c3c756bc68ece18d97e41acf95165a69"
+  },
+  "validation": "Each exported array decoded and compared exactly with source metadata; CSV contents not fully audited.",
+  "historical_rng": "Unknown; current split_data.py is not asserted to regenerate these historical assignments."
+}
