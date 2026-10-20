@@ -21,10 +21,6 @@ The loader supports the following input modalities:
         ProtT5 embeddings stored per augmented BLOSUM row as
         ``chunk_XXXXXX_X.npy``.
 
-    - POSITION:
-        Epitope-position/distance values stored per augmented BLOSUM row as
-        ``chunk_XXXXXX_pos.npy``.
-
     - SECONDARY:
         SecondaryBERT embeddings stored once per original window and aligned
         with the augmented BLOSUM rows through ``group_id``.
@@ -41,18 +37,10 @@ Load only ProtT5:
 
     selected_features = [Feature.PRIMARY]
 
-Load ProtT5 and position:
+Load ProtT5 together with SecondaryBERT:
 
     selected_features = [
         Feature.PRIMARY,
-        Feature.POSITION,
-    ]
-
-Load every available modality:
-
-    selected_features = [
-        Feature.PRIMARY,
-        Feature.POSITION,
         Feature.SECONDARY,
     ]
 
@@ -74,7 +62,16 @@ from __future__ import annotations
 from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Iterator, List, Mapping, MutableMapping, Optional, Sequence, Union
+from typing import (
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Union,
+)
 
 import numpy as np
 import pandas as pd
@@ -105,7 +102,6 @@ class Feature(str, Enum):
     """Input modalities supported by the dataset loader."""
 
     PRIMARY = "primary"
-    POSITION = "position"
     SECONDARY = "secondary"
 
 
@@ -187,10 +183,10 @@ def discover_datasets(root: Union[str, Path]) -> List[dict]:
         Each dictionary contains:
 
         ``name``
-            Human-readable dataset name, such as ``HLA-A``.
+            Human-readable dataset name.
 
         ``primary_path``
-            Directory containing ProtT5, position and label chunks.
+            Directory containing ProtT5 chunks.
 
         ``secondary_path``
             Matching SecondaryBERT directory, if found.
@@ -238,7 +234,9 @@ def discover_datasets(root: Union[str, Path]) -> List[dict]:
     return datasets
 
 
-def print_datasets(datasets: Sequence[Mapping[str, object]]) -> None:
+def print_datasets(
+    datasets: Sequence[Mapping[str, object]],
+) -> None:
     """Print the datasets discovered by :func:`discover_datasets`."""
 
     print()
@@ -269,8 +267,7 @@ def normalize_features(
     """
     Convert strings/Feature values into a validated feature list.
 
-    When ``features`` is ``None``, only ProtT5 is selected to preserve the
-    behaviour of the original loader.
+    When ``features`` is ``None``, only ProtT5 is selected.
     """
 
     if features is None:
@@ -283,7 +280,11 @@ def normalize_features(
 
     for feature in features:
         try:
-            parsed = feature if isinstance(feature, Feature) else Feature(feature)
+            parsed = (
+                feature
+                if isinstance(feature, Feature)
+                else Feature(feature)
+            )
         except ValueError as error:
             valid = ", ".join(item.value for item in Feature)
             raise ValueError(
@@ -356,12 +357,15 @@ def _load_row_aligned_chunk(
     feature_name: str,
 ) -> np.ndarray:
     """
-    Load selected rows from a feature aligned with the ProtT5 chunks.
+    Load selected rows from a row-aligned embedding chunk.
 
-    This function is used for both ProtT5 and position/distance values.
+    This function is currently used to load ProtT5 embeddings.
     """
 
-    chunk_file = primary_path / f"chunk_{chunk_id:06d}_{suffix}.npy"
+    chunk_file = (
+        primary_path
+        / f"chunk_{chunk_id:06d}_{suffix}.npy"
+    )
 
     if not chunk_file.is_file():
         raise FileNotFoundError(
@@ -398,9 +402,9 @@ class SecondaryBERTStore:
     """
     Random-access reader for SecondaryBERT embeddings indexed by ``group_id``.
 
-    The complete ``group_id.npy`` file is memory-mapped. Requested group IDs are
-    located with ``numpy.searchsorted`` and translated into SecondaryBERT chunk
-    positions using ``chunks_manifest.csv``.
+    The complete ``group_id.npy`` file is memory-mapped. Requested group IDs
+    are located with ``numpy.searchsorted`` and translated into SecondaryBERT
+    chunk positions using ``chunks_manifest.csv``.
 
     A small least-recently-used cache avoids repeatedly loading the same
     SecondaryBERT chunk.
@@ -428,7 +432,10 @@ class SecondaryBERTStore:
                 f"SecondaryBERT manifest not found: {manifest_file}"
             )
 
-        self.group_ids = np.load(group_id_file, mmap_mode="r")
+        self.group_ids = np.load(
+            group_id_file,
+            mmap_mode="r",
+        )
 
         if self.group_ids.ndim != 1:
             raise RuntimeError(
@@ -438,8 +445,14 @@ class SecondaryBERTStore:
 
         # searchsorted requires a sorted array.
         if len(self.group_ids) > 1:
-            sample_step = max(1, len(self.group_ids) // 100_000)
-            sampled = np.asarray(self.group_ids[::sample_step])
+            sample_step = max(
+                1,
+                len(self.group_ids) // 100_000,
+            )
+
+            sampled = np.asarray(
+                self.group_ids[::sample_step]
+            )
 
             if np.any(sampled[1:] < sampled[:-1]):
                 raise RuntimeError(
@@ -449,7 +462,12 @@ class SecondaryBERTStore:
 
         manifest = pd.read_csv(
             manifest_file,
-            usecols=["chunk_id", "start", "end", "x_file"],
+            usecols=[
+                "chunk_id",
+                "start",
+                "end",
+                "x_file",
+            ],
         ).sort_values("start")
 
         if manifest.empty:
@@ -457,9 +475,17 @@ class SecondaryBERTStore:
                 f"SecondaryBERT manifest is empty: {manifest_file}"
             )
 
-        self.chunk_ids = manifest["chunk_id"].to_numpy(dtype=np.int64)
-        self.starts = manifest["start"].to_numpy(dtype=np.int64)
-        self.ends = manifest["end"].to_numpy(dtype=np.int64)
+        self.chunk_ids = manifest["chunk_id"].to_numpy(
+            dtype=np.int64
+        )
+
+        self.starts = manifest["start"].to_numpy(
+            dtype=np.int64
+        )
+
+        self.ends = manifest["end"].to_numpy(
+            dtype=np.int64
+        )
 
         # Paths stored in the manifest may belong to the machine where the
         # embeddings were generated. Prefer the current dataset directory and
@@ -471,12 +497,15 @@ class SecondaryBERTStore:
                 self.chunks_path
                 / f"chunk_{int(row.chunk_id):06d}_X_ss.npy"
             )
+
             manifest_path = Path(str(row.x_file))
 
             if local_file.is_file():
                 self.chunk_files.append(local_file)
+
             elif manifest_path.is_file():
                 self.chunk_files.append(manifest_path)
+
             else:
                 raise FileNotFoundError(
                     "SecondaryBERT chunk not found. Checked:\n"
@@ -496,36 +525,63 @@ class SecondaryBERTStore:
                 f"group_id.npy={len(self.group_ids)}."
             )
 
-        if np.any(self.starts[1:] != self.ends[:-1]):
+        if np.any(
+            self.starts[1:] != self.ends[:-1]
+        ):
             raise RuntimeError(
                 "SecondaryBERT manifest contains gaps or overlapping chunks."
             )
 
-        self._cache: MutableMapping[int, np.ndarray] = OrderedDict()
+        self._cache: MutableMapping[
+            int,
+            np.ndarray,
+        ] = OrderedDict()
 
-    def _find_global_rows(self, requested_group_ids: np.ndarray) -> np.ndarray:
+    def _find_global_rows(
+        self,
+        requested_group_ids: np.ndarray,
+    ) -> np.ndarray:
         """Translate group IDs into global SecondaryBERT row indices."""
 
-        requested_group_ids = np.asarray(requested_group_ids)
+        requested_group_ids = np.asarray(
+            requested_group_ids
+        )
 
         if requested_group_ids.ndim != 1:
-            requested_group_ids = requested_group_ids.reshape(-1)
+            requested_group_ids = (
+                requested_group_ids.reshape(-1)
+            )
 
-        positions = np.searchsorted(self.group_ids, requested_group_ids)
+        positions = np.searchsorted(
+            self.group_ids,
+            requested_group_ids,
+        )
 
         in_bounds = positions < len(self.group_ids)
-        matches = np.zeros(len(positions), dtype=bool)
+
+        matches = np.zeros(
+            len(positions),
+            dtype=bool,
+        )
 
         if np.any(in_bounds):
             valid_positions = positions[in_bounds]
+
             matches[in_bounds] = (
-                np.asarray(self.group_ids[valid_positions])
+                np.asarray(
+                    self.group_ids[valid_positions]
+                )
                 == requested_group_ids[in_bounds]
             )
 
         if not np.all(matches):
-            missing = np.unique(requested_group_ids[~matches])
-            preview = ", ".join(map(str, missing[:10]))
+            missing = np.unique(
+                requested_group_ids[~matches]
+            )
+
+            preview = ", ".join(
+                map(str, missing[:10])
+            )
 
             if len(missing) > 10:
                 preview += ", ..."
@@ -535,66 +591,113 @@ class SecondaryBERTStore:
                 f"{preview}"
             )
 
-        return positions.astype(np.int64, copy=False)
+        return positions.astype(
+            np.int64,
+            copy=False,
+        )
 
-    def _load_chunk(self, manifest_index: int) -> np.ndarray:
+    def _load_chunk(
+        self,
+        manifest_index: int,
+    ) -> np.ndarray:
         """Load a SecondaryBERT chunk using a small LRU cache."""
 
-        manifest_index = int(manifest_index)
+        manifest_index = int(
+            manifest_index
+        )
 
         if manifest_index in self._cache:
-            values = self._cache.pop(manifest_index)
+            values = self._cache.pop(
+                manifest_index
+            )
+
             self._cache[manifest_index] = values
+
             return values
 
-        chunk_file = self.chunk_files[manifest_index]
-        values = np.load(chunk_file, mmap_mode="r")
+        chunk_file = self.chunk_files[
+            manifest_index
+        ]
 
-        expected_rows = self.ends[manifest_index] - self.starts[manifest_index]
+        values = np.load(
+            chunk_file,
+            mmap_mode="r",
+        )
+
+        expected_rows = (
+            self.ends[manifest_index]
+            - self.starts[manifest_index]
+        )
 
         if len(values) != expected_rows:
             raise RuntimeError(
                 f"Unexpected number of rows in {chunk_file}: "
-                f"expected {expected_rows}, found {len(values)}."
+                f"expected {expected_rows}, "
+                f"found {len(values)}."
             )
 
         self._cache[manifest_index] = values
 
         while len(self._cache) > self.cache_size:
-            self._cache.popitem(last=False)
+            self._cache.popitem(
+                last=False
+            )
 
         return values
 
-    def get(self, requested_group_ids: np.ndarray) -> np.ndarray:
+    def get(
+        self,
+        requested_group_ids: np.ndarray,
+    ) -> np.ndarray:
         """
-        Return SecondaryBERT embeddings in the requested group-ID order.
+        Return mean-pooled SecondaryBERT embeddings in the requested group-ID
+        order.
 
-        Repeated group IDs are resolved only once internally and reconstructed
-        afterwards with ``inverse_indices``. This avoids repeating binary
-        searches, manifest lookups and chunk indexing for augmented BLOSUM rows
-        that share the same original window.
+        SecondaryBERT stores one embedding per residue with shape
+        ``(sequence_length, embedding_dim)``.
 
-        The returned array still contains exactly one row per requested sample,
-        preserving the original ordering and the public behaviour of the
-        dataset loader.
+        The residue dimension is mean-pooled so that each original window is
+        represented by a single embedding vector.
+
+        For the current SecondaryBERT data:
+
+            (25, 768) -> (768,)
+
+        Repeated group IDs are resolved and pooled only once internally, then
+        reconstructed with ``inverse_indices``.
+
+        Returns
+        -------
+        np.ndarray
+            Array with shape ``(n_samples, embedding_dim)``.
+
+            With the current SecondaryBERT embeddings, this is
+            ``(n_samples, 768)``.
         """
 
-        requested_group_ids = np.asarray(requested_group_ids)
+        requested_group_ids = np.asarray(
+            requested_group_ids
+        )
 
         if requested_group_ids.ndim != 1:
-            requested_group_ids = requested_group_ids.reshape(-1)
+            requested_group_ids = (
+                requested_group_ids.reshape(-1)
+            )
 
         if len(requested_group_ids) == 0:
             raise RuntimeError(
                 "Cannot load an empty set of SecondaryBERT embeddings."
             )
 
+        # Resolve repeated group IDs only once.
         unique_group_ids, inverse_indices = np.unique(
             requested_group_ids,
             return_inverse=True,
         )
 
-        global_rows = self._find_global_rows(unique_group_ids)
+        global_rows = self._find_global_rows(
+            unique_group_ids
+        )
 
         # Locate the manifest interval containing every unique global row.
         manifest_indices = np.searchsorted(
@@ -603,33 +706,78 @@ class SecondaryBERTStore:
             side="right",
         )
 
-        if np.any(manifest_indices >= len(self.ends)):
+        if np.any(
+            manifest_indices >= len(self.ends)
+        ):
             raise RuntimeError(
                 "A SecondaryBERT global row falls outside the manifest."
             )
 
-        unique_output: Optional[np.ndarray] = None
+        unique_output: Optional[
+            np.ndarray
+        ] = None
 
-        for manifest_index in np.unique(manifest_indices):
-            selection = manifest_indices == manifest_index
-            selected_global_rows = global_rows[selection]
+        for manifest_index in np.unique(
+            manifest_indices
+        ):
+            selection = (
+                manifest_indices
+                == manifest_index
+            )
+
+            selected_global_rows = (
+                global_rows[selection]
+            )
+
             local_rows = (
-                selected_global_rows - self.starts[manifest_index]
-            ).astype(np.int64, copy=False)
+                selected_global_rows
+                - self.starts[manifest_index]
+            ).astype(
+                np.int64,
+                copy=False,
+            )
 
-            chunk_values = self._load_chunk(int(manifest_index))
-            selected_values = np.asarray(chunk_values[local_rows])
+            chunk_values = self._load_chunk(
+                int(manifest_index)
+            )
 
-            if unique_output is None:
-                output_shape = (
-                    len(unique_group_ids),
-                ) + selected_values.shape[1:]
-                unique_output = np.empty(
-                    output_shape,
-                    dtype=selected_values.dtype,
+            # Select only the required original windows.
+            #
+            # Expected:
+            # (n_selected, 25, 768)
+            selected_values = np.asarray(
+                chunk_values[local_rows]
+            )
+
+            if selected_values.ndim != 3:
+                raise RuntimeError(
+                    "Expected SecondaryBERT embeddings with shape "
+                    "(n_samples, sequence_length, embedding_dim), "
+                    f"found {selected_values.shape}."
                 )
 
-            unique_output[selection] = selected_values
+            # Mean pooling over the amino-acid/residue dimension:
+            #
+            # (n_selected, 25, 768)
+            #           ↓
+            # (n_selected, 768)
+            pooled_values = selected_values.mean(
+                axis=1,
+                dtype=np.float32,
+            )
+
+            if unique_output is None:
+                unique_output = np.empty(
+                    (
+                        len(unique_group_ids),
+                        pooled_values.shape[1],
+                    ),
+                    dtype=pooled_values.dtype,
+                )
+
+            unique_output[
+                selection
+            ] = pooled_values
 
         if unique_output is None:
             raise RuntimeError(
@@ -638,7 +786,9 @@ class SecondaryBERTStore:
 
         # Reconstruct the exact original sample order, including repeated
         # group IDs from augmented BLOSUM rows.
-        return unique_output[inverse_indices]
+        return unique_output[
+            inverse_indices
+        ]
 
 
 # =============================================================================
@@ -648,7 +798,9 @@ class SecondaryBERTStore:
 def iterate_dataset(
     dataset: Mapping[str, object],
     split: int = TRAIN,
-    features: Optional[Sequence[FeatureLike]] = None,
+    features: Optional[
+        Sequence[FeatureLike]
+    ] = None,
     csv_chunk_size: int = CSV_CHUNK_SIZE,
     secondary_cache_size: int = DEFAULT_SECONDARY_CACHE_SIZE,
 ) -> Iterator[dict]:
@@ -676,56 +828,55 @@ def iterate_dataset(
     Yields
     ------
     dict
-        Batch dictionary containing:
-
-        ``dataset``
-            Dataset name.
-
-        ``chunk_id``
-            ProtT5 chunk identifier.
-
-        ``total_chunks``
-            Total number of ProtT5 chunks in the dataset.
-
-        ``features``
-            Dictionary with only the selected modalities.
-
-        ``labels``
-            Binary epitope labels.
-
-        ``group_id``
-            Original-window identifiers used for multimodal alignment.
-
-        ``protein_group_id``
-            Protein identifiers, when available in ``master_split.csv``.
-
-        ``row_idx_in_chunk``
-            Original row indices inside the ProtT5 chunk.
+        Batch dictionary containing the selected modalities, labels and
+        alignment information.
     """
 
     if split not in VALID_SPLITS:
         raise ValueError(
             f"Invalid split {split!r}. "
-            f"Use TRAIN={TRAIN}, VALIDATION={VALIDATION} or TEST={TEST}."
+            f"Use TRAIN={TRAIN}, "
+            f"VALIDATION={VALIDATION} "
+            f"or TEST={TEST}."
         )
 
     if csv_chunk_size <= 0:
-        raise ValueError("csv_chunk_size must be greater than zero.")
+        raise ValueError(
+            "csv_chunk_size must be greater than zero."
+        )
 
-    selected_features = normalize_features(features)
-    _validate_dataset(dataset, selected_features)
+    selected_features = normalize_features(
+        features
+    )
 
-    primary_path = Path(dataset["primary_path"])
-    master_split = Path(dataset["master_split"])
+    _validate_dataset(
+        dataset,
+        selected_features,
+    )
 
-    total_chunks = sum(1 for _ in primary_path.glob("chunk_*_X.npy"))
+    primary_path = Path(
+        dataset["primary_path"]
+    )
+
+    master_split = Path(
+        dataset["master_split"]
+    )
+
+    total_chunks = sum(
+        1
+        for _ in primary_path.glob(
+            "chunk_*_X.npy"
+        )
+    )
 
     if total_chunks == 0:
         raise FileNotFoundError(
             f"No ProtT5 chunk files were found in {primary_path}."
         )
 
-    secondary_store: Optional[SecondaryBERTStore] = None
+    secondary_store: Optional[
+        SecondaryBERTStore
+    ] = None
 
     if Feature.SECONDARY in selected_features:
         secondary_store = SecondaryBERTStore(
@@ -733,7 +884,10 @@ def iterate_dataset(
             cache_size=secondary_cache_size,
         )
 
-    available_columns = pd.read_csv(master_split, nrows=0).columns.tolist()
+    available_columns = pd.read_csv(
+        master_split,
+        nrows=0,
+    ).columns.tolist()
 
     required_columns = {
         "chunk_id",
@@ -743,12 +897,18 @@ def iterate_dataset(
         "split_id",
     }
 
-    missing_columns = required_columns.difference(available_columns)
+    missing_columns = (
+        required_columns.difference(
+            available_columns
+        )
+    )
 
     if missing_columns:
         raise ValueError(
             f"{master_split} is missing required columns: "
-            + ", ".join(sorted(missing_columns))
+            + ", ".join(
+                sorted(missing_columns)
+            )
         )
 
     usecols = [
@@ -759,10 +919,15 @@ def iterate_dataset(
         "split_id",
     ]
 
-    has_protein_group_id = "protein_group_id" in available_columns
+    has_protein_group_id = (
+        "protein_group_id"
+        in available_columns
+    )
 
     if has_protein_group_id:
-        usecols.append("protein_group_id")
+        usecols.append(
+            "protein_group_id"
+        )
 
     reader = pd.read_csv(
         master_split,
@@ -771,7 +936,9 @@ def iterate_dataset(
     )
 
     for csv_block in reader:
-        split_block = csv_block.loc[csv_block["split_id"] == split]
+        split_block = csv_block.loc[
+            csv_block["split_id"] == split
+        ]
 
         if split_block.empty:
             continue
@@ -781,54 +948,62 @@ def iterate_dataset(
             "chunk_id",
             sort=False,
         ):
-            chunk_id = int(chunk_id)
+            chunk_id = int(
+                chunk_id
+            )
 
-            indices = rows["row_idx_in_chunk"].to_numpy(
+            indices = rows[
+                "row_idx_in_chunk"
+            ].to_numpy(
                 dtype=np.int64,
                 copy=False,
             )
-            labels = rows["y"].to_numpy(
+
+            labels = rows[
+                "y"
+            ].to_numpy(
                 dtype=np.uint8,
                 copy=False,
             )
-            group_ids = rows["group_id"].to_numpy(
+
+            group_ids = rows[
+                "group_id"
+            ].to_numpy(
                 dtype=np.int64,
                 copy=False,
             )
 
-            loaded_features: Dict[str, np.ndarray] = {}
+            loaded_features: Dict[
+                str,
+                np.ndarray,
+            ] = {}
+
+            # -------------------------------------------------------------
+            # PRIMARY — ProtT5
+            # -------------------------------------------------------------
 
             if Feature.PRIMARY in selected_features:
-                loaded_features[Feature.PRIMARY.value] = (
-                    _load_row_aligned_chunk(
-                        primary_path=primary_path,
-                        chunk_id=chunk_id,
-                        indices=indices,
-                        suffix="X",
-                        feature_name="ProtT5",
-                    )
-                )
-
-            if Feature.POSITION in selected_features:
-                position = _load_row_aligned_chunk(
+                loaded_features[
+                    Feature.PRIMARY.value
+                ] = _load_row_aligned_chunk(
                     primary_path=primary_path,
                     chunk_id=chunk_id,
                     indices=indices,
-                    suffix="pos",
-                    feature_name="Position",
+                    suffix="X",
+                    feature_name="ProtT5",
                 )
 
-                # A scalar position per sample is represented as a column so it
-                # can be concatenated directly with embedding matrices.
-                if position.ndim == 1:
-                    position = position.reshape(-1, 1)
-
-                loaded_features[Feature.POSITION.value] = position
+            # -------------------------------------------------------------
+            # SECONDARY — SecondaryBERT
+            # -------------------------------------------------------------
 
             if Feature.SECONDARY in selected_features:
                 assert secondary_store is not None
-                loaded_features[Feature.SECONDARY.value] = (
-                    secondary_store.get(group_ids)
+
+                loaded_features[
+                    Feature.SECONDARY.value
+                ] = secondary_store.get(
+                    group_ids
                 )
 
             batch = {
@@ -842,9 +1017,14 @@ def iterate_dataset(
             }
 
             if has_protein_group_id:
-                batch["protein_group_id"] = rows[
+                batch[
                     "protein_group_id"
-                ].to_numpy(dtype=np.int64, copy=False)
+                ] = rows[
+                    "protein_group_id"
+                ].to_numpy(
+                    dtype=np.int64,
+                    copy=False,
+                )
 
             yield batch
 
@@ -855,8 +1035,12 @@ def iterate_dataset(
 
 def build_input_matrix(
     batch: Mapping[str, object],
-    features: Optional[Sequence[FeatureLike]] = None,
-    dtype: Optional[np.dtype] = np.float32,
+    features: Optional[
+        Sequence[FeatureLike]
+    ] = None,
+    dtype: Optional[
+        np.dtype
+    ] = np.float32,
 ) -> np.ndarray:
     """
     Concatenate selected modalities into a two-dimensional feature matrix.
@@ -874,8 +1058,8 @@ def build_input_matrix(
         Batch returned by :func:`iterate_dataset`.
 
     features
-        Order in which modalities are concatenated. When omitted, the insertion
-        order in ``batch["features"]`` is used.
+        Order in which modalities are concatenated. When omitted, the
+        insertion order in ``batch["features"]`` is used.
 
     dtype
         Output dtype. Set to ``None`` to preserve NumPy's inferred dtype.
@@ -887,20 +1071,39 @@ def build_input_matrix(
     """
 
     if "features" not in batch:
-        raise KeyError("The batch does not contain a 'features' dictionary.")
+        raise KeyError(
+            "The batch does not contain a 'features' dictionary."
+        )
 
-    batch_features = batch["features"]
+    batch_features = batch[
+        "features"
+    ]
 
-    if not isinstance(batch_features, Mapping):
-        raise TypeError("batch['features'] must be a mapping.")
+    if not isinstance(
+        batch_features,
+        Mapping,
+    ):
+        raise TypeError(
+            "batch['features'] must be a mapping."
+        )
 
     if features is None:
-        selected = [Feature(name) for name in batch_features.keys()]
+        selected = [
+            Feature(name)
+            for name in batch_features.keys()
+        ]
     else:
-        selected = normalize_features(features)
+        selected = normalize_features(
+            features
+        )
 
-    matrices: List[np.ndarray] = []
-    expected_rows: Optional[int] = None
+    matrices: List[
+        np.ndarray
+    ] = []
+
+    expected_rows: Optional[
+        int
+    ] = None
 
     for feature in selected:
         key = feature.value
@@ -911,7 +1114,9 @@ def build_input_matrix(
                 f"Available features: {list(batch_features.keys())}"
             )
 
-        values = np.asarray(batch_features[key])
+        values = np.asarray(
+            batch_features[key]
+        )
 
         if values.ndim == 0:
             raise ValueError(
@@ -919,31 +1124,53 @@ def build_input_matrix(
             )
 
         if values.ndim == 1:
-            values = values.reshape(-1, 1)
-        elif values.ndim > 2:
-            values = values.reshape(values.shape[0], -1)
-
-        if expected_rows is None:
-            expected_rows = len(values)
-        elif len(values) != expected_rows:
-            raise ValueError(
-                "Selected modalities contain different numbers of samples: "
-                f"expected {expected_rows}, found {len(values)} for {key!r}."
+            values = values.reshape(
+                -1,
+                1,
             )
 
-        matrices.append(values)
+        elif values.ndim > 2:
+            values = values.reshape(
+                values.shape[0],
+                -1,
+            )
+
+        if expected_rows is None:
+            expected_rows = len(
+                values
+            )
+
+        elif len(values) != expected_rows:
+            raise ValueError(
+                "Selected modalities contain different numbers "
+                "of samples: "
+                f"expected {expected_rows}, "
+                f"found {len(values)} for {key!r}."
+            )
+
+        matrices.append(
+            values
+        )
 
     if not matrices:
-        raise ValueError("No feature matrices were selected.")
+        raise ValueError(
+            "No feature matrices were selected."
+        )
 
     output = (
         matrices[0]
         if len(matrices) == 1
-        else np.concatenate(matrices, axis=1)
+        else np.concatenate(
+            matrices,
+            axis=1,
+        )
     )
 
     if dtype is not None:
-        output = output.astype(dtype, copy=False)
+        output = output.astype(
+            dtype,
+            copy=False,
+        )
 
     return output
 
@@ -951,8 +1178,11 @@ def build_input_matrix(
 def feature_combination_name(
     features: Sequence[FeatureLike],
 ) -> str:
-    """Return a stable name such as ``primary+position+secondary``."""
+    """Return a stable name such as ``primary+secondary``."""
 
     return "+".join(
-        feature.value for feature in normalize_features(features)
+        feature.value
+        for feature in normalize_features(
+            features
+        )
     )

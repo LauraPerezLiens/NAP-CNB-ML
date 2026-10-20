@@ -27,3 +27,6 @@ __pycache__/
 
 # Large NumPy result arrays
 *_curves.npz
+
+# Local process metadata
+*.pid
