@@ -36,3 +36,11 @@ ladder.lock
 completed_*_epochs.ok
 
 launch.json
+
+# Local experiment archives and active training outputs
+NN/Multilayer_Percepton/archive/*.tar.gz
+NN/Multilayer_Percepton/chunk_ladder100_layernorm_cosine_shuffled_allscaler_dualeval_100epochs_1GPU/
+NN/Multilayer_Percepton/analysis_scaler_2_vs_all/progress*.npz
+*.bin
+*.tmp
+*.lock

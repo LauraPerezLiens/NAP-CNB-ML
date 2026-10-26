@@ -4,27 +4,30 @@
 Distributed MLP training for NAP-CNB Primary / Primary+Secondary embeddings.
 Changes relative to the previous baseline:
 - TRAIN and TEST only; TEST loss selects BEST. All epochs run.
-- No CPU/RAM/GPU resource-monitoring output.
+- Single-GPU, bounded-memory monitoring; samples and exact-AUC records stay on disk.
 - TRAIN is still exact 50/50 within each physical chunk.
 - TEST uses global 50/50 sampling across selected physical chunks.
-- All TEST positives are retained.
+- Fixed monitor samples are used for BEST epoch selection; no full-data evaluation.
 - TRAIN EVAL and TEST EVAL use fixed global 50/50 samples without replacement.
-- All three modes report exact ROC-AUC from logits.
+- Per-chunk TRAIN ONLINE and fixed monitors report exact ROC-AUC; epoch counters omit AUC.
 - TRAIN, VALIDATION and TEST use the same selected physical chunks; only split_id differs.
 - --seed + --max-chunks define a fixed physical-chunk subset reused across epochs.
-- Training is processed in deterministic blocks of physical chunks.
-- TRAIN ONLINE accumulates during training; TRAIN EVAL and TEST EVAL run at epoch end.
-- A recovery checkpoint is saved after every block. If the machine/session dies,
+- TRAIN chunk order is shuffled deterministically for each epoch (seed + epoch).
+- Chunk selection and evaluation samples remain fixed; only TRAIN traversal changes.
+- Fixed global 50/50 TRAIN/TEST monitoring after each chunk; reused at epoch end.
+- Atomic recovery checkpoints every 100 chunks; RNG state is saved. If interrupted,
 --resume can continue from the next unprocessed block of the same epoch.
 - A completed-epoch checkpoint is also saved.
-- Primary+Secondary uses the same fixed 2-TRAIN-chunk standardizer logic.
+- Primary+Secondary loads the precomputed ALL-TRAIN-chunk standardizer; never fits it.
 """
 from __future__ import annotations
 import argparse
 import gc
+import hashlib
 import json
 import math
 import os
+import tempfile
 import random
 import time
 from contextlib import nullcontext
@@ -44,7 +47,6 @@ from dataset import (
     CyclingClassSampler,
     ModalityStandardizer,
     discover_datasets,
-    fit_primary_secondary_standardizer,
     input_dimension,
     list_chunk_ids,
     load_chunk_metadata,
@@ -153,7 +155,11 @@ def ordered_epoch_jobs(
     seed,
     epoch,
 ):
-    return list(fixed_jobs)
+    # Local RNG leaves minibatch sampling and global dropout RNG unchanged.
+    order = np.arange(len(fixed_jobs), dtype=np.int64)
+    rng = np.random.default_rng(np.random.SeedSequence([seed, epoch, 730201]))
+    rng.shuffle(order)
+    return [fixed_jobs[int(i)] for i in order]
 def shard_block(
     block_jobs: Sequence[ChunkJob],
     rank: int,
@@ -181,39 +187,21 @@ def prepare_standardizer(
 ) -> Optional[ModalityStandardizer]:
     if args.features == "primary":
         return None
-    scaler_path = (
-    Path(args.output_dir).resolve().parent
-    / "standardizer_primary_secondary_2chunks.npz"
-    )
-    if is_main(rank):
-        if scaler_path.exists() and not args.refit_scaler:
-            existing = ModalityStandardizer.load(scaler_path)
-            if len(existing.sampled_chunk_ids) != 2:
-                raise RuntimeError(
-                    f"Existing scaler was not fitted from exactly 2 chunks: {scaler_path}"
-                )
-            print(f"[SCALER] Reusing {scaler_path}", flush=True)
-        else:
-            print(
-                "[SCALER] Fitting once from exactly 2 physical TRAIN chunks "
-                f"(seed={args.seed}).",
-                flush=True,
-            )
-            standardizer = fit_primary_secondary_standardizer(
-                datasets=datasets,
-                n_train_chunks=2,
-                seed=args.seed,
-                secondary_cache_size=args.secondary_cache_size,
-                stats_batch_size=args.stats_batch_size,
-            )
-            scaler_path.parent.mkdir(parents=True, exist_ok=True)
-            standardizer.save(scaler_path)
-            print(f"[SCALER] Saved: {scaler_path}", flush=True)
-    barrier(distributed)
+    scaler_path = Path(args.scaler_path).resolve()
+    if not scaler_path.is_file():
+        raise FileNotFoundError(f"Precomputed ALL-TRAIN scaler not found: {scaler_path}")
     standardizer = ModalityStandardizer.load(scaler_path)
-    if len(standardizer.sampled_chunk_ids) != 2:
-        raise RuntimeError("Scaler must contain statistics from exactly 2 chunks.")
+    expected_jobs = build_chunk_jobs(datasets)
+    expected = {(str(datasets[j.dataset_index]["name"]), int(j.chunk_id)) for j in expected_jobs}
+    actual = set(zip(map(str, standardizer.sampled_dataset_names),
+                     map(int, standardizer.sampled_chunk_ids)))
+    if actual != expected or len(standardizer.sampled_chunk_ids) != len(expected_jobs):
+        raise RuntimeError("Scaler manifest does not match all physical chunks in --root.")
+    if is_main(rank):
+        print(f"[SCALER] Loading precomputed ALL-TRAIN scaler: {scaler_path} "
+              f"({len(actual):,} chunks; no fitting)", flush=True)
     return standardizer
+
 # -----------------------------------------------------------------------------
 # Streaming metrics
 # -----------------------------------------------------------------------------
@@ -340,6 +328,177 @@ class StreamingBinaryMetrics:
             "fp": float(fp),
             "fn": float(fn),
         }
+class EpochScalarMetrics(StreamingBinaryMetrics):
+    """Constant-memory epoch counters. Exact AUC stays in per-chunk monitors."""
+    keys=('loss_sum','n','tp','tn','fp','fn')
+    def merge(self,other):
+        for key in self.keys:setattr(self,key,getattr(self,key)+getattr(other,key))
+    def state_dict(self):
+        return {key:getattr(self,key) for key in self.keys}
+    def load_state_dict(self,state):
+        # Compatible with existing disk-AUC recovery states; no logits are read.
+        for key in self.keys:setattr(self,key,state[key])
+    def roc_auc(self):return float('nan')
+    def close(self,remove=False):pass
+
+class DiskBinaryMetrics(StreamingBinaryMetrics):
+    """Exact float32 ROC-AUC, compact 5-byte records, bounded external radix sort."""
+    directory = None
+    record_dtype = np.dtype([('score','<f4'),('label','u1')])
+    sort_memory_bytes = 2 * 1024 * 1024
+    io_records = 32768
+    def __init__(self, auc_bins=4096):
+        super().__init__(auc_bins)
+        fd,self.db_path=tempfile.mkstemp(prefix='auc_',suffix='.bin',dir=self.directory)
+        self.stream=os.fdopen(fd,'r+b')
+    def _store(self, ys, scores):
+        for y,score in zip(ys,scores):
+            if not np.all(np.isfinite(score)):
+                raise ValueError('ROC-AUC requires finite model logits.')
+            records=np.empty(len(y),dtype=self.record_dtype)
+            records['score']=score; records['label']=y
+            # Treat -0.0 and +0.0 as the same tie group.
+            records['score'][records['score']==0]=0.0
+            records.tofile(self.stream)
+    def update(self, logits, targets, loss_sum):
+        super().update(logits,targets,loss_sum)
+        self._store(self.y_true,self.logits)
+        self.y_true.clear();self.logits.clear()
+    def merge(self,other):
+        for key in ('loss_sum','n','tp','tn','fp','fn'):
+            setattr(self,key,getattr(self,key)+getattr(other,key))
+        self._store(other.y_true,other.logits)
+    @staticmethod
+    def _ordered_keys(scores):
+        bits=scores.copy().view(np.uint32)
+        return np.where(bits & np.uint32(0x80000000), ~bits, bits ^ np.uint32(0x80000000))
+    def roc_auc(self):
+        positive=self.tp+self.fn;negative=self.tn+self.fp
+        if not positive or not negative:return float('nan')
+        self.stream.flush()
+        below=0;area=0.0
+        def process(path,depth,root):
+            nonlocal below,area
+            if Path(path).stat().st_size<=self.sort_memory_bytes:
+                data=np.fromfile(path,dtype=self.record_dtype)
+                if not len(data):return
+                data.sort(order='score',kind='quicksort')
+                _,starts=np.unique(data['score'],return_index=True)
+                pos=np.add.reduceat(data['label'].astype(np.int64),starts)
+                sizes=np.diff(np.append(starts,len(data)));neg=sizes-pos
+                area+=float(np.sum(pos*(below+np.cumsum(neg)-0.5*neg),dtype=np.float64))
+                below+=int(neg.sum());return
+            if depth==4:
+                # All records in this radix bucket have identical float32 logits.
+                pos=0;count=0
+                with open(path,'rb') as source:
+                    while True:
+                        data=np.fromfile(source,dtype=self.record_dtype,count=self.io_records)
+                        if not len(data):break
+                        pos+=int(data['label'].sum());count+=len(data)
+                neg=count-pos;area+=pos*(below+0.5*neg);below+=neg;return
+            bucket_root=Path(tempfile.mkdtemp(prefix='radix_',dir=root))
+            used=set()
+            with open(path,'rb') as source:
+                while True:
+                    data=np.fromfile(source,dtype=self.record_dtype,count=self.io_records)
+                    if not len(data):break
+                    bucket=(self._ordered_keys(data['score']) >> (24-8*depth)).astype(np.uint8)
+                    for key in np.unique(bucket):
+                        key=int(key);used.add(key)
+                        with (bucket_root/str(key)).open('ab') as target:
+                            data[bucket==key].tofile(target)
+            for key in sorted(used):
+                child=bucket_root/str(key);process(child,depth+1,root);child.unlink()
+            bucket_root.rmdir()
+        with tempfile.TemporaryDirectory(prefix='auc_sort_',dir=self.directory) as root:
+            process(self.db_path,0,root)
+        return area/(positive*negative)
+    def state_dict(self):
+        self.stream.flush();os.fsync(self.stream.fileno())
+        state={key:getattr(self,key) for key in ('auc_bins','loss_sum','n','tp','tn','fp','fn')}
+        state.update(disk_auc_path=self.db_path,disk_auc_bytes=self.stream.tell())
+        return state
+    def load_state_dict(self,state):
+        if 'disk_auc_path' not in state:
+            super().load_state_dict(state)
+            self._store(self.y_true,self.logits);self.y_true.clear();self.logits.clear();return
+        if 'disk_auc_bytes' not in state:
+            raise RuntimeError('Checkpoint uses obsolete SQLite AUC storage.')
+        self.close(remove=True);self.db_path=state['disk_auc_path']
+        self.stream=open(self.db_path,'r+b')
+        if os.fstat(self.stream.fileno()).st_size<state['disk_auc_bytes']:
+            raise RuntimeError('Incomplete disk AUC recovery data.')
+        self.stream.truncate(state['disk_auc_bytes']);self.stream.seek(0,os.SEEK_END)
+        for key in ('auc_bins','loss_sum','n','tp','tn','fp','fn'):setattr(self,key,state[key])
+    def close(self,remove=False):
+        self.stream.close()
+        if remove:Path(self.db_path).unlink(missing_ok=True)
+
+def cache_identity(datasets,jobs,seed,split,args=None):
+    """Cache key for immutable prepared datasets and the exact selected chunk list."""
+    payload={'version':3,'seed':seed,'split':split,
+             'datasets':[{key:str(value) for key,value in d.items()} for d in datasets],
+             'metadata_versions':[Path(d['metadata_path']).stat().st_mtime_ns
+                                  if 'metadata_path' in d else None for d in datasets],
+             'jobs':[(j.dataset_index,j.chunk_id) for j in jobs]}
+    if args is not None:
+        payload['features']=args.features
+        path=Path(args.scaler_path)
+        payload['scaler_sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
+
+def atomic_json(path,value):
+    path=Path(path);temp=Path(str(path)+'.tmp')
+    temp.write_text(json.dumps(value));os.replace(temp,path)
+
+class DiskEvalPlan:
+    def __init__(self, root): self.root = Path(root)
+    def path(self, job): return self.root / f'{job.dataset_index}_{job.chunk_id}.npy'
+    def __getitem__(self, job): return np.load(self.path(job))
+
+def build_disk_eval_plan(datasets, jobs, seed, split, root):
+    """Same all-positive/global-negative policy, bounded to one chunk's indices."""
+    plan = DiskEvalPlan(root); plan.root.mkdir(parents=True, exist_ok=True)
+    identity=cache_identity(datasets,jobs,seed,split)
+    marker=plan.root/'ready.json'
+    if marker.exists():
+        saved=json.loads(marker.read_text())
+        if saved.get('identity')==identity and all(plan.path(j).is_file() for j in jobs):
+            print(f'[EVAL PLAN split={split}] reusing disk plan',flush=True)
+            return plan
+        marker.unlink()
+    counts = []
+    for index, job in enumerate(jobs):
+        meta = load_chunk_metadata(datasets[job.dataset_index], job.chunk_id, mmap=True)
+        mask = meta['split_id'] == split
+        counts.append((int(np.count_nonzero(mask & (meta['y']==1))),
+                       int(np.count_nonzero(mask & (meta['y']==0)))))
+        if (index+1)%500==0: print(f'[EVAL PLAN split={split}] counted {index+1:,}/{len(jobs):,}',flush=True)
+    pos = sum(a for a,b in counts); neg = sum(b for a,b in counts)
+    if not pos or neg < pos: raise RuntimeError('Cannot construct 50/50 evaluation without replacement.')
+    rng = np.random.default_rng(np.random.SeedSequence([seed,split,987654]))
+    need=pos; population=neg
+    for job, (n_pos,n_neg) in zip(jobs,counts):
+        if need and n_neg:
+            if population >= 1_000_000_000:
+                from scipy.stats import hypergeom
+                take = int(hypergeom.ppf(max(rng.random(),np.finfo(float).tiny),population,n_neg,need))
+            else:
+                take = int(rng.hypergeometric(n_neg,population-n_neg,need))
+        else: take=0
+        population-=n_neg; need-=take
+        meta = load_chunk_metadata(datasets[job.dataset_index],job.chunk_id,mmap=True)
+        mask=meta['split_id']==split
+        rows_pos=np.flatnonzero(mask & (meta['y']==1)); rows_neg=np.flatnonzero(mask & (meta['y']==0))
+        chosen=rng.choice(rows_neg,size=take,replace=False)
+        rows=np.concatenate((rows_pos,chosen)); rng.shuffle(rows)
+        np.save(plan.path(job),rows)
+    assert need==0
+    atomic_json(marker,{'identity':identity})
+    print(f'[EVAL PLAN split={split}] disk-backed | positive={pos:,} | negative={pos:,}',flush=True)
+    return plan
+
 # -----------------------------------------------------------------------------
 # Batch loading
 # -----------------------------------------------------------------------------
@@ -802,7 +961,7 @@ def evaluate_split(
     # Preserve the existing DDP distribution.
     jobs = list(eval_jobs[rank::world_size])
 
-    metrics = StreamingBinaryMetrics(args.auc_bins)
+    metrics = DiskBinaryMetrics(args.auc_bins)
 
     secondary_stores: dict = {}
 
@@ -846,11 +1005,15 @@ def evaluate_split(
 
             del X, y, X_t, y_t, logits, loss_sum
 
+        secondary_stores.clear()
+
     metrics.synchronize(device, distributed)
 
     model.train(was_training)
 
-    return metrics.compute()
+    result = metrics.compute()
+    metrics.close(remove=True)
+    return result
 # -----------------------------------------------------------------------------
 # Reporting / checkpointing
 # -----------------------------------------------------------------------------
@@ -860,7 +1023,8 @@ def format_metrics(prefix: str, m: Mapping[str, float]) -> str:
         f"bal_acc={m['balanced_accuracy']:.4f} | precision={m['precision']:.4f} | "
         f"recall={m['recall']:.4f} | specificity={m['specificity']:.4f} | "
         f"F1={m['f1']:.4f} | F2={m['f2']:.4f} | MCC={m['mcc']:.4f} | "
-        f"ROC-AUC={m['roc_auc']:.4f} | n={int(m['n']):,}"
+        f"ROC-AUC={m['roc_auc']:.4f} | n={int(m['n']):,} | "
+        f"positive={int(m['tp']+m['fn']):,} | negative={int(m['tn']+m['fp']):,}"
     )
 def append_history(path: Path, record: Mapping[str, object]) -> None:
     with path.open("a", encoding="utf-8") as handle:
@@ -886,9 +1050,14 @@ def save_checkpoint(
       \\- at the next epoch (completed_epochs == epoch_index + 1).
     """
     raw_model = model.module if isinstance(model, DDP) else model
+    temporary_path = Path(str(path) + ".tmp")
     torch.save(
         {
             "checkpoint_version": 4,
+            "selection_metric": "stage_fixed_50_50_test_loss",
+            "torch_rng_state": torch.get_rng_state(),
+            "cuda_rng_state": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else [],
+            "chunk_order": "shuffle_per_epoch_v1",
             "normalization": "layernorm",
             "train_epoch_metrics_state": train_epoch_metrics_state,
             "model_state_dict": raw_model.state_dict(),
@@ -907,8 +1076,9 @@ def save_checkpoint(
             "epochs_without_improvement": int(epochs_without_improvement),
             "args": vars(args),
         },
-        path,
+        temporary_path,
     )
+    os.replace(temporary_path,path)
 # -----------------------------------------------------------------------------
 # Arguments / main
 # -----------------------------------------------------------------------------
@@ -923,6 +1093,10 @@ def parse_args() -> argparse.Namespace:
         choices=("primary", "primary_secondary"),
         default="primary_secondary",
     )
+    parser.add_argument("--eval-target-per-class",type=int,default=29006,
+                        help="Approximate rows per class per evaluation; chunk-stratified without replacement.")
+    parser.add_argument("--shared-eval-dir",type=Path,default=None,
+                        help="Shared global sample cache, reused across all ladder stages.")
     parser.add_argument("--epochs", type=int, default=100)
     # No early stopping: always complete --epochs.
 
@@ -943,7 +1117,12 @@ def parse_args() -> argparse.Namespace:
         "--auc-bins", type=int, default=4096,
         help="Deprecated compatibility option; exact ROC-AUC does not use bins.",
     )
-    parser.add_argument("--refit-scaler", action="store_true")
+    parser.add_argument(
+        "--scaler-path",
+        default=str(Path(__file__).resolve().parent / "analysis_scaler_2_vs_all"
+                    / "standardizer_all_train_chunks.npz"),
+        help="Precomputed scaler fitted on all TRAIN chunks; never recalculated.",
+    )
     parser.add_argument(
         "--report-every-chunks",
         type=int,
@@ -971,7 +1150,7 @@ def parse_args() -> argparse.Namespace:
             "With a fixed --seed, increasing this value produces nested chunk subsets."
         ),
     )
-    parser.add_argument("--output-dir", default="./mlp_results")
+    parser.add_argument("--output-dir", default="./mlp_results_ladder100_dualeval")
     parser.add_argument(
         "--resume",
         default=None,
@@ -995,8 +1174,147 @@ def parse_args() -> argparse.Namespace:
         help="Optional diagnostic only: run TEST every epoch. Keep disabled for model selection.",
     )
     return parser.parse_args()
+
+def build_monitor_cache(datasets, jobs, split, args, standardizer):
+    """Fixed rows from every nonempty chunk, globally balanced without replacement."""
+    per_class=max(2,math.ceil(args.eval_target_per_class/len(jobs)))
+    identity=cache_identity(datasets,jobs,args.seed,split,args)+f':target={args.eval_target_per_class}:quota_v2'
+    cache_path=Path(args.output_dir)/f'monitor_batches_split_{split}.pkl'
+    marker=cache_path.with_suffix('.ready.json')
+    if marker.exists() and cache_path.exists():
+        saved=json.loads(marker.read_text())
+        if saved.get('identity')==identity and saved.get('bytes')==cache_path.stat().st_size:
+            print(f'[MONITOR READY split={split}] reusing disk cache | n={saved["n"]:,}',flush=True)
+            return cache_path
+    marker.unlink(missing_ok=True)
+    rng = np.random.default_rng(np.random.SeedSequence([args.seed, split, 662211]))
+    target=max(args.eval_target_per_class,len(jobs))
+    base,remainder=divmod(target,len(jobs))
+    quotas=np.full(len(jobs),base,dtype=np.int64)
+    quota_rng=np.random.default_rng(np.random.SeedSequence([args.seed,split,444221]))
+    if remainder:quotas[quota_rng.choice(len(jobs),size=remainder,replace=False)]+=1
+    selected = {}; available = {}; counts = [0, 0]
+    for index, job in enumerate(jobs):
+        meta = load_chunk_metadata(datasets[job.dataset_index], job.chunk_id, mmap=True)
+        selected[job] = []
+        for label in (0, 1):
+            rows = np.flatnonzero((meta['split_id'] == split) & (meta['y'] == label))
+            take = min(int(quotas[index]), len(rows))
+            chosen = rng.choice(rows, size=take, replace=False)
+            selected[job].extend(map(int, chosen)); counts[label] += take
+            available[job, label] = len(rows)-take
+        if (index + 1) % 500 == 0 or index + 1 == len(jobs):
+            print(f"[MONITOR PLAN split={split}] {index+1:,}/{len(jobs):,} chunks", flush=True)
+    minority = int(counts[1] < counts[0]); deficit = abs(counts[1]-counts[0])
+    candidates = [j for j in jobs if available[j, minority]]
+    while deficit:
+        if not candidates:
+            majority=1-minority
+            removable=[]
+            for job in jobs:
+                meta=load_chunk_metadata(datasets[job.dataset_index],job.chunk_id,mmap=True)
+                removable.extend((job,row) for row in selected[job] if meta['y'][row]==majority)
+            remove_indices=set(map(int,rng.choice(len(removable),size=deficit,replace=False)))
+            removals={}
+            for index in remove_indices:
+                job,row=removable[index];removals.setdefault(job,set()).add(row)
+            for job,rows_to_remove in removals.items():
+                selected[job]=[row for row in selected[job] if row not in rows_to_remove]
+            deficit=0
+            break
+        rng.shuffle(candidates)
+        remaining = []
+        for job in candidates:
+            meta = load_chunk_metadata(datasets[job.dataset_index],job.chunk_id,mmap=True)
+            rows = np.flatnonzero((meta['split_id']==split) & (meta['y']==minority))
+            pool = np.setdiff1d(rows, selected[job], assume_unique=False)
+            take = min(per_class, deficit, len(pool))
+            chosen = rng.choice(pool, size=take, replace=False)
+            selected[job].extend(map(int, chosen)); deficit -= take
+            available[job,minority] -= take
+            if available[job,minority]: remaining.append(job)
+            if not deficit: break
+        candidates = remaining
+    del available
+    manifest = [{'dataset': str(datasets[j.dataset_index]['name']), 'chunk': j.chunk_id,
+                 'rows': sorted(selected[j])} for j in jobs]
+    (Path(args.output_dir) / f'monitor_rows_split_{split}.json').write_text(json.dumps(manifest))
+    import pickle
+    partial=cache_path.with_suffix('.tmp')
+    cache_file = partial.open('wb')
+    stores = {}; total = 0; positive = 0
+    for index, job in enumerate(jobs):
+        rows = np.asarray(selected[job], dtype=np.int64)
+        if len(rows):
+            dataset = datasets[job.dataset_index]
+            meta = load_chunk_metadata(dataset, job.chunk_id, mmap=True)
+            X, y = _load_chunk_rows(dataset, job.chunk_id, meta, rows, args.features,
+                                    args.secondary_cache_size, stores)
+            X = np.asarray(transform_input(X, args.features, standardizer), dtype=np.float32)
+            pickle.dump((X,y),cache_file,protocol=pickle.HIGHEST_PROTOCOL)
+            total += len(y); positive += int(np.count_nonzero(y==1))
+            stores.clear()
+        if (index+1) % 500 == 0 or index+1 == len(jobs):
+            print(f"[MONITOR CACHE split={split}] {index+1:,}/{len(jobs):,} chunks | disk-backed", flush=True)
+    cache_file.close()
+    assert total == positive*2
+    if total==0:raise RuntimeError('Empty monitoring split.')
+    os.replace(partial,cache_path)
+    atomic_json(marker,{'identity':identity,'bytes':cache_path.stat().st_size,'n':total})
+    print(f"[MONITOR READY split={split}] disk cache | n={total:,} | positive={positive:,} "
+          f"| negative={positive:,}", flush=True)
+    return cache_path
+
+@torch.inference_mode()
+def evaluate_monitor(model, cache, args, device):
+    was_training = model.training
+    model.eval(); metrics = StreamingBinaryMetrics(args.auc_bins)
+    import pickle
+    features=np.empty((args.eval_batch_size,model.network[0].in_features),dtype=np.float32)
+    labels=np.empty(args.eval_batch_size,dtype=np.float32)
+    n=0
+    def consume(count):
+        xb=torch.from_numpy(features[:count]).to(device)
+        yb=torch.from_numpy(labels[:count]).to(device)
+        logits=model(xb)
+        loss=nn.functional.binary_cross_entropy_with_logits(logits,yb,reduction='sum')
+        metrics.update(logits,yb,float(loss.item()))
+    with Path(cache).open('rb') as stream:
+        while True:
+            try:X,y=pickle.load(stream)
+            except EOFError:break
+            start=0
+            while start<len(y):
+                take=min(args.eval_batch_size-n,len(y)-start)
+                features[n:n+take]=X[start:start+take];labels[n:n+take]=y[start:start+take]
+                n+=take;start+=take
+                if n==args.eval_batch_size:consume(n);n=0
+        if n:consume(n)
+    model.train(was_training)
+    return metrics.compute()
+
+def rollback_monitor_history(path,epoch_index,chunk_offset):
+    path=Path(path)
+    if not path.exists():return
+    temporary=Path(str(path)+'.tmp')
+    removed=0
+    with path.open() as source,temporary.open('w') as target:
+        for line in source:
+            try:record=json.loads(line)
+            except json.JSONDecodeError:
+                removed+=1;continue
+            if record['epoch']>epoch_index+1 or (record['epoch']==epoch_index+1 and record['chunk_offset']>chunk_offset):
+                removed+=1;continue
+            target.write(line)
+    if removed:
+        backup=Path(str(path)+f'.before_resume_{time.time_ns()}')
+        os.replace(path,backup);os.replace(temporary,path)
+        print(f'[RESUME] Archived {removed} replayed monitor records to {backup.name}',flush=True)
+    else:temporary.unlink()
+
 def main() -> None:
     args = parse_args()
+    if args.eval_target_per_class<=0:raise ValueError("--eval-target-per-class must be positive")
     validate_feature_mode(args.features)
     if args.batch_size <= 0 or args.batch_size % 2 != 0:
         raise ValueError("--batch-size must be a positive even number.")
@@ -1004,6 +1322,8 @@ def main() -> None:
         raise ValueError("--eval-batch-size must be > 0.")
     if args.epochs <= 0:
         raise ValueError("--epochs must be > 0.")
+    if args.report_every_chunks != 1:
+        raise ValueError("Per-chunk monitoring requires --report-every-chunks 1.")
     if args.report_every_chunks <= 0:
         raise ValueError("--report-every-chunks must be > 0.")
     if args.monitor_test_chunks < 0:
@@ -1011,11 +1331,15 @@ def main() -> None:
     if args.max_chunks is not None and args.max_chunks <= 0:
         raise ValueError("--max-chunks must be > 0.")
     distributed, rank, local_rank, world_size, device = distributed_setup()
+    if distributed:
+        raise RuntimeError("This full-data monitor experiment requires one GPU.")
+    torch.set_num_threads(2)
     seed_everything(args.seed, rank)
     output_dir = Path(args.output_dir).resolve()
     if is_main(rank):
         output_dir.mkdir(parents=True, exist_ok=True)
     barrier(distributed)
+    DiskBinaryMetrics.directory = str(output_dir)
     datasets = discover_datasets(args.root)
     all_jobs = build_chunk_jobs(datasets)
     fixed_train_jobs = select_fixed_jobs(
@@ -1028,7 +1352,7 @@ def main() -> None:
     fixed_test_jobs_selected = list(fixed_train_jobs)
     if is_main(rank):
         print("=" * 100)
-        print(f"MLP LAYERNORM | TRAIN ONLINE + TRAIN EVAL + TEST EVAL | {args.epochs} epochs | BEST by TEST loss")
+        print(f"MLP LAYERNORM | TRAIN ONLINE + TRAIN EVAL + TEST EVAL | {args.epochs} epochs | BEST by TEST STAGE loss")
         print("=" * 100)
         print(f"Datasets                 : {len(datasets)}")
         print(f"Physical chunks          : {len(all_jobs):,}")
@@ -1036,12 +1360,13 @@ def main() -> None:
         print(f"Input dimension          : {input_dimension(args.features)}")
         print(f"GPUs / DDP ranks         : {world_size}")
         print(f"Batch size / GPU         : {args.batch_size:,} (exact 50/50 TRAIN)")
-        print(f"Report/checkpoint every  : {args.report_every_chunks:,} GLOBAL TRAIN chunks")
+        print(f"Train/monitor every      : {args.report_every_chunks:,} GLOBAL TRAIN chunks")
+        print("TRAIN chunk order        : shuffled per epoch (seed + epoch)")
         print("Early stopping           : DISABLED")
         if args.monitor_test_chunks:
             print(f"Periodic TEST monitor    : up to {args.monitor_test_chunks:,} of the SAME selected chunks")
         else:
-            print("Periodic TEST monitor    : disabled")
+            print("Per-chunk TRAIN/TEST eval: fixed STAGE and ALL 50/50 samples; disk cache")
         print(f"Output                   : {output_dir}")
         print(f"Resume                   : {args.resume if args.resume else 'NONE'}")
         print(
@@ -1168,6 +1493,8 @@ def main() -> None:
                 "Checkpoint seed differs from --seed. Exact intra-epoch resume "
                 "requires the same seed."
             )
+        if checkpoint.get("chunk_order") != "shuffle_per_epoch_v1":
+            raise RuntimeError("Resume requires a shuffled-chunk checkpoint; use --init-checkpoint for weights only.")
         raw_model.load_state_dict(checkpoint["model_state_dict"])
 
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -1215,15 +1542,30 @@ def main() -> None:
     else:
         if is_main(rank) and history_path.exists():
             history_path.unlink()
+    if args.resume is not None:
+        rollback_monitor_history(output_dir/'monitor_history.jsonl',start_epoch,resume_offset)
     barrier(distributed)
-    # Build both evaluation populations once and reuse the same rows every epoch.
-    full_test_jobs = fixed_test_jobs_selected
-    train_eval_plan = build_global_balanced_eval_plan(
-        datasets, fixed_train_jobs, args.seed, TRAIN,
-    )
-    test_eval_plan = build_global_balanced_eval_plan(
-        datasets, full_test_jobs, args.seed, TEST,
-    )
+    print('[MEMORY] Chunk-wise indices; disk monitor cache; scalar epoch counters; no full-epoch predictions.', flush=True)
+    from types import SimpleNamespace
+    def prepare_eval(label,jobs,directory):
+        directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
+        sample_args=SimpleNamespace(**vars(args));sample_args.output_dir=str(directory)
+        print(f'[EVAL SET {label}] physical_chunks={len(jobs):,} | target_per_class={args.eval_target_per_class:,}',flush=True)
+        cache=build_monitor_cache(datasets,jobs,TRAIN if label.startswith('TRAIN') else TEST,sample_args,standardizer)
+        info=json.loads(cache.with_suffix('.ready.json').read_text())
+        print(f'[EVAL SET {label}] positive={info["n"]//2:,} | negative={info["n"]//2:,} | n={info["n"]:,}',flush=True)
+        return cache
+    shared=args.shared_eval_dir or output_dir.parent/'shared_global_eval'
+    monitor_train=prepare_eval('TRAIN STAGE',fixed_train_jobs,output_dir/'eval_stage')
+    monitor_test=prepare_eval('TEST STAGE',fixed_train_jobs,output_dir/'eval_stage')
+    monitor_train_all=prepare_eval('TRAIN ALL',all_jobs,shared)
+    monitor_test_all=prepare_eval('TEST ALL',all_jobs,shared)
+    print('[BEST] Selected only by TEST STAGE loss; ALL metrics are diagnostics. '
+          'No additional full-data evaluation at epoch end.',flush=True)
+    if args.resume is not None and 'torch_rng_state' in checkpoint:
+        torch.set_rng_state(checkpoint['torch_rng_state'].cpu())
+        if torch.cuda.is_available() and checkpoint.get('cuda_rng_state'):
+            torch.cuda.set_rng_state_all([state.cpu() for state in checkpoint['cuda_rng_state']])
     for epoch in range(start_epoch, args.epochs):
         epoch_start = time.time()
         epoch_jobs = ordered_epoch_jobs(
@@ -1233,7 +1575,7 @@ def main() -> None:
         )
         total_chunks = len(epoch_jobs)
         offset = resume_offset if epoch == start_epoch else 0
-        train_epoch_metrics = StreamingBinaryMetrics(args.auc_bins)
+        train_epoch_metrics = EpochScalarMetrics(args.auc_bins)
         if offset:
             train_epoch_metrics.load_state_dict(resumed_train_metrics_state)
         if offset > total_chunks:
@@ -1272,7 +1614,29 @@ def main() -> None:
             barrier(distributed)
             train_epoch_metrics.merge(train_metrics)
             offset = block_end
-            if is_main(rank) and offset < total_chunks:
+            train_monitor_metrics = evaluate_monitor(model, monitor_train, args, device)
+            test_monitor_metrics = evaluate_monitor(model, monitor_test, args, device)
+            train_all_metrics = evaluate_monitor(model, monitor_train_all, args, device)
+            test_all_metrics = evaluate_monitor(model, monitor_test_all, args, device)
+            job = block_jobs[0]
+            print(f"\nEPOCH {epoch+1}/{args.epochs} | CHUNK {offset:,}/{total_chunks:,} | "
+                  f"{datasets[job.dataset_index]['name']} chunk={job.chunk_id} | "
+                  f"train+eval={time.time()-block_t0:.1f}s", flush=True)
+            online_metrics = train_metrics.compute()
+            print(format_metrics('TRAIN ONLINE (current chunk; 50/50)', online_metrics), flush=True)
+            print(format_metrics(f'TRAIN EVAL STAGE ({total_chunks:,} chunks; fixed 50/50)', train_monitor_metrics), flush=True)
+            print(format_metrics(f'TEST EVAL STAGE ({total_chunks:,} chunks; fixed 50/50)', test_monitor_metrics), flush=True)
+            print(format_metrics(f'TRAIN EVAL ALL ({len(all_jobs):,} chunks; fixed 50/50)', train_all_metrics),flush=True)
+            print(format_metrics(f'TEST EVAL ALL ({len(all_jobs):,} chunks; fixed 50/50)', test_all_metrics),flush=True)
+            append_history(output_dir / 'monitor_history.jsonl', {
+                'epoch': epoch+1, 'chunk_offset': offset,
+                'dataset': str(datasets[job.dataset_index]['name']), 'chunk_id': job.chunk_id,
+                'train_online': online_metrics, 'train_eval': train_monitor_metrics,
+                'test_eval': test_monitor_metrics,
+                'train_eval_stage': train_monitor_metrics,'test_eval_stage': test_monitor_metrics,
+                'train_eval_all': train_all_metrics,'test_eval_all': test_all_metrics,
+                'stage_chunks': total_chunks,'all_chunks':len(all_jobs)})
+            if is_main(rank) and offset < total_chunks and offset % 100 == 0:
                 # Keep recovery checkpoints without per-block terminal output.
                 save_checkpoint(
                     path=recovery_path, model=model, optimizer=optimizer, scheduler=scheduler,
@@ -1282,37 +1646,11 @@ def main() -> None:
                     best_epoch=best_epoch,
                     train_epoch_metrics_state=train_epoch_metrics.state_dict(),
                 )
+            del train_metrics
             barrier(distributed)
-        # Freeze weights and disable dropout for both end-of-epoch evaluations.
-        train_eval_metrics = evaluate_split(
-            model=model,
-            criterion=criterion,
-            standardizer=standardizer,
-            datasets=datasets,
-            eval_jobs=fixed_train_jobs,
-            split=TRAIN,
-            args=args,
-            distributed=distributed,
-            rank=rank,
-            world_size=world_size,
-            device=device,
-            sampling_plan=train_eval_plan,
-        )
-        full_test_metrics = evaluate_split(
-            model=model,
-            criterion=criterion,
-            standardizer=standardizer,
-            datasets=datasets,
-            eval_jobs=full_test_jobs,
-            split=TEST,
-            args=args,
-            distributed=distributed,
-            rank=rank,
-            world_size=world_size,
-            device=device,
-            sampling_plan=test_eval_plan,
-        )
-        barrier(distributed)
+        # The last chunk already evaluated these exact weights on both fixed samples.
+        train_eval_metrics = train_monitor_metrics
+        full_test_metrics = test_monitor_metrics
         current_test_loss = float(full_test_metrics["loss"])
         if is_main(rank):
 
@@ -1379,9 +1717,11 @@ def main() -> None:
                 f"EPOCH {epoch + 1}/{args.epochs} COMPLETE | "
                 f"{elapsed / 3600:.2f} h"
             )
-            print(format_metrics("TRAIN ONLINE (50/50; exact AUC)", epoch_train_metrics))
-            print(format_metrics("TRAIN EVAL (fixed 50/50; exact AUC)", train_eval_metrics))
-            print(format_metrics("TEST EVAL (fixed 50/50; exact AUC)", full_test_metrics))
+            print(format_metrics("TRAIN ONLINE (epoch aggregate; 50/50; AUC not accumulated)", epoch_train_metrics))
+            print(format_metrics("TRAIN EVAL STAGE (fixed 50/50; exact AUC)", train_eval_metrics))
+            print(format_metrics("TEST EVAL STAGE (fixed 50/50; exact AUC)", full_test_metrics))
+            print(format_metrics("TRAIN EVAL ALL (fixed 50/50; exact AUC)", train_all_metrics))
+            print(format_metrics("TEST EVAL ALL (fixed 50/50; exact AUC)", test_all_metrics))
             print(f"BEST | epoch={best_epoch} | test_loss={best_test_loss:.6f}")
             print("=" * 100, flush=True)
             if improved:
@@ -1418,25 +1758,14 @@ def main() -> None:
                 best_epoch=best_epoch,
                 epochs_without_improvement=epochs_without_improvement,
             )
-            # Keep recovery synchronized with the latest safe point too.
-            save_checkpoint(
-                path=recovery_path,
-                model=model,
-                optimizer=optimizer,
-                scheduler=scheduler,
-                args=args,
-                epoch_index=epoch,
-                next_chunk_offset=total_chunks,
-                epoch_total_chunks=total_chunks,
-                completed_epochs=epoch + 1,
-                best_val_loss=best_test_loss,
-                best_epoch=best_epoch,
-                epochs_without_improvement=epochs_without_improvement,
-            )
             append_history(
                 history_path,
                 {
                     "type": "epoch_end",
+                    "evaluation_scope": "stage_and_all_fixed_50_50",
+                    "stage_chunks":total_chunks,"all_chunks":len(all_jobs),
+                    "train_eval_stage":train_eval_metrics,"test_eval_stage":full_test_metrics,
+                    "train_eval_all":train_all_metrics,"test_eval_all":test_all_metrics,
                     "epoch": epoch + 1,
                     "elapsed_seconds": elapsed,
                     "train": epoch_train_metrics,
@@ -1451,6 +1780,8 @@ def main() -> None:
                 },
             )
             print(f"[CHECKPOINT] Completed epoch saved: {last_path}", flush=True)
+            recovery_path.unlink(missing_ok=True)
+            train_epoch_metrics.close(remove=True)
         barrier(distributed)
         resume_offset = 0
         gc.collect()

@@ -1,0 +1,605 @@
+{
+  "archived": [
+    {
+      "path": "EXPERIMENTS.md",
+      "size": 33547
+    },
+    {
+      "path": "README_allchunks_lowmemory.md",
+      "size": 2499
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/README.md",
+      "size": 804
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/checkpoints/best_mlp_primary_secondary.pt",
+      "size": 11842501
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/checkpoints/last_mlp_primary_secondary.pt",
+      "size": 11842501
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/checkpoints/recovery_mlp_primary_secondary.pt",
+      "size": 11842757
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/logs/run.log.gz",
+      "size": 1597810
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/metrics/history_mlp_primary_secondary.jsonl.gz",
+      "size": 681
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/metrics/monitor_batches_split_0.ready.json.gz",
+      "size": 148
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/metrics/monitor_batches_split_2.ready.json.gz",
+      "size": 148
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/metrics/monitor_history.jsonl.gz",
+      "size": 5098690
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/metrics/monitor_rows_split_0.json.gz",
+      "size": 250879
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/metrics/monitor_rows_split_2.json.gz",
+      "size": 251038
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/plots/train_online_loss.png",
+      "size": 115844
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/plots/train_online_train_eval_test_eval_loss_panels.png",
+      "size": 215103
+    },
+    {
+      "path": "allchunks_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/summary.json",
+      "size": 4598
+    },
+    {
+      "path": "analysis_chunk_ladder_seed42/README.md",
+      "size": 3757
+    },
+    {
+      "path": "analysis_chunk_ladder_seed42/analysis.log",
+      "size": 31417
+    },
+    {
+      "path": "analysis_chunk_ladder_seed42/checkpoint_test_by_chunk.csv",
+      "size": 51761
+    },
+    {
+      "path": "analysis_chunk_ladder_seed42/selected_chunks.csv",
+      "size": 8655
+    },
+    {
+      "path": "analyze_chunk_ladder.py",
+      "size": 3828
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/README.md",
+      "size": 1057
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_10/best_mlp_primary_secondary.pt",
+      "size": 11836053
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_10/history_mlp_primary_secondary.jsonl",
+      "size": 218927
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_10/last_mlp_primary_secondary.pt",
+      "size": 11836053
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_10/launch.json",
+      "size": 492
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_10/recovery_mlp_primary_secondary.pt",
+      "size": 11836237
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_10/run.log",
+      "size": 128822
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_10/run.pid",
+      "size": 8
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_20/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_20/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_20/history_mlp_primary_secondary.jsonl",
+      "size": 220151
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_20/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_20/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_20/run.log",
+      "size": 130301
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_30/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_30/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_30/history_mlp_primary_secondary.jsonl",
+      "size": 220458
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_30/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_30/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_30/run.log",
+      "size": 128598
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_40/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_40/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_40/history_mlp_primary_secondary.jsonl",
+      "size": 220807
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_40/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_40/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_40/run.log",
+      "size": 129566
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_50/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_50/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_50/history_mlp_primary_secondary.jsonl",
+      "size": 220983
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_50/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_50/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_50/run.log",
+      "size": 127076
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_60/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_60/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_60/history_mlp_primary_secondary.jsonl",
+      "size": 221370
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_60/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_60/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_60/run.log",
+      "size": 128806
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_70/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_70/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_70/history_mlp_primary_secondary.jsonl",
+      "size": 221321
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_70/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_70/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_70/run.log",
+      "size": 127468
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_80/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_80/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_80/history_mlp_primary_secondary.jsonl",
+      "size": 222119
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_80/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_80/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_80/run.log",
+      "size": 129290
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_90/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_90/history_mlp_primary_secondary.jsonl",
+      "size": 157544
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_90/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_90/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/chunks_90/run.log",
+      "size": 92763
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/ladder.lock",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/ladder.log",
+      "size": 999252
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/run.pid",
+      "size": 8
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_100epochs_1GPU/standardizer_primary_secondary_2chunks.npz",
+      "size": 16102
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_10/best_mlp_primary_secondary.pt",
+      "size": 11836117
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_10/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_10/history_mlp_primary_secondary.jsonl",
+      "size": 219342
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_10/last_mlp_primary_secondary.pt",
+      "size": 11836117
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_10/recovery_mlp_primary_secondary.pt",
+      "size": 11836301
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_10/run.log",
+      "size": 130385
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_20/best_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_20/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_20/history_mlp_primary_secondary.jsonl",
+      "size": 219913
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_20/last_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_20/recovery_mlp_primary_secondary.pt",
+      "size": 11836493
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_20/run.log",
+      "size": 129421
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_30/best_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_30/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_30/history_mlp_primary_secondary.jsonl",
+      "size": 220363
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_30/last_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_30/recovery_mlp_primary_secondary.pt",
+      "size": 11836493
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_30/run.log",
+      "size": 129217
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_40/best_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_40/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_40/history_mlp_primary_secondary.jsonl",
+      "size": 220569
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_40/last_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_40/recovery_mlp_primary_secondary.pt",
+      "size": 11836493
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_40/run.log",
+      "size": 129618
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_50/best_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_50/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_50/history_mlp_primary_secondary.jsonl",
+      "size": 220901
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_50/last_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_50/recovery_mlp_primary_secondary.pt",
+      "size": 11836493
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_50/run.log",
+      "size": 129015
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_60/best_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_60/history_mlp_primary_secondary.jsonl",
+      "size": 17695
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_60/last_mlp_primary_secondary.pt",
+      "size": 11836309
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_60/recovery_mlp_primary_secondary.pt",
+      "size": 60059533
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/chunks_60/run.log",
+      "size": 12138
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/ladder.lock",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_100epochs_1GPU/standardizer_primary_secondary_2chunks.npz",
+      "size": 16102
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_10/best_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_10/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_10/history_mlp_primary_secondary.jsonl",
+      "size": 219340
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_10/last_mlp_primary_secondary.pt",
+      "size": 11836245
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_10/recovery_mlp_primary_secondary.pt",
+      "size": 11836429
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_10/run.log",
+      "size": 132206
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_20/best_mlp_primary_secondary.pt",
+      "size": 11836437
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_20/completed_100_epochs.ok",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_20/history_mlp_primary_secondary.jsonl",
+      "size": 219954
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_20/last_mlp_primary_secondary.pt",
+      "size": 11836437
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_20/recovery_mlp_primary_secondary.pt",
+      "size": 11836621
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_20/run.log",
+      "size": 130077
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_30/best_mlp_primary_secondary.pt",
+      "size": 11836437
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_30/history_mlp_primary_secondary.jsonl",
+      "size": 44135
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_30/last_mlp_primary_secondary.pt",
+      "size": 11836437
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_30/recovery_mlp_primary_secondary.pt",
+      "size": 30070477
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/chunks_30/run.log",
+      "size": 29695
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_100epochs_1GPU/ladder.lock",
+      "size": 0
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_allscaler_launcher.log",
+      "size": 294024
+    },
+    {
+      "path": "chunk_ladder_layernorm_cosine_shuffled_launcher.log",
+      "size": 663887
+    },
+    {
+      "path": "mlp_baseline_layernorm.py",
+      "size": 53356
+    },
+    {
+      "path": "mlp_baseline_layernorm_shuffled.py",
+      "size": 54048
+    },
+    {
+      "path": "mlp_baseline_layernorm_shuffled_allscaler.py",
+      "size": 53700
+    },
+    {
+      "path": "mlp_layernorm_shuffled_allchunks_monitor.py",
+      "size": 70525
+    },
+    {
+      "path": "run_allchunks_shuffled_allscaler_monitor.sh",
+      "size": 1163
+    },
+    {
+      "path": "run_chunk_ladder_layernorm.sh",
+      "size": 3009
+    },
+    {
+      "path": "run_chunk_ladder_layernorm_shuffled.sh",
+      "size": 3242
+    },
+    {
+      "path": "run_chunk_ladder_layernorm_shuffled_allscaler.sh",
+      "size": 3262
+    }
+  ],
+  "deleted": [
+    {
+      "path": "compare_scalers_2_vs_10.py",
+      "reason": "Obsolete trial or generated Python cache"
+    },
+    {
+      "path": "test_allchunks_lowmemory.py",
+      "reason": "Obsolete trial or generated Python cache"
+    },
+    {
+      "path": "test_epoch_finish_resume.py",
+      "reason": "Obsolete trial or generated Python cache"
+    },
+    {
+      "path": "__pycache__",
+      "reason": "Obsolete trial or generated Python cache"
+    }
+  ],
+  "kept_active": "chunk_ladder100_layernorm_cosine_shuffled_allscaler_dualeval_100epochs_1GPU",
+  "archive_file": "legacy_experiments_2026-10-26.tar.gz",
+  "archive_sha256": "6e6b1dbe259eaf0d1d0f775651583529bbf66134e69b339fab49d1fe2d8ee7df"
+}

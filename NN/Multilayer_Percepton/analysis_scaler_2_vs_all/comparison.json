@@ -1,0 +1,35 @@
+{
+  "train_rows": 1159882361,
+  "physical_chunks": 14503,
+  "fit_split": "TRAIN only",
+  "statistics": {
+    "primary": {
+      "mean_shift_in_sigma_all": {
+        "median": 0.11009149319027198,
+        "p95": 0.289422936963438,
+        "max": 0.3975074824603526
+      },
+      "relative_scale_difference": {
+        "median": 0.05105986935986895,
+        "p95": 0.15205900073167347,
+        "max": 0.28870912254755987
+      },
+      "fraction_features_scale_diff_gt_10pct": 0.1650390625,
+      "rms_difference_z_on_all_train": 0.17865427541324633
+    },
+    "secondary": {
+      "mean_shift_in_sigma_all": {
+        "median": 0.21511406329662425,
+        "p95": 0.3700456395626587,
+        "max": 0.4111360399386762
+      },
+      "relative_scale_difference": {
+        "median": 0.046996984411102505,
+        "p95": 0.11405685471748886,
+        "max": 0.18648613973111816
+      },
+      "fraction_features_scale_diff_gt_10pct": 0.09895833333333333,
+      "rms_difference_z_on_all_train": 0.23603623819787586
+    }
+  }
+}
