@@ -104,8 +104,18 @@ of incorrect split counts.
 
 ## LayerNorm
 
-See [EXPERIMENTS.md](NN/Multilayer_Percepton/EXPERIMENTS.md) for architecture,
-hardware, optimization, sampling, checkpoints, and experimental results.
+The current experiment trains a cumulative ladder of 100, 200, 300… chunks,
+with LayerNorm, shuffled TRAIN traversal, cosine warm restarts and a precomputed
+scaler fitted on all TRAIN chunks. Each stage runs 100 epochs and reports fixed
+50/50 TRAIN/TEST evaluations for both the stage chunks and all 14,503 chunks.
+BEST is selected by stage TEST loss.
+
+See the [MLP README](NN/Multilayer_Percepton/README.md) for configuration,
+files, checkpoints and plotting commands, and the
+[experiment history](NN/Multilayer_Percepton/RESUMEN_EXPERIMENTOS.md) for trials
+from BatchNorm onward, their results and interpretation limits.
+Historical outputs and auxiliary tools are archived locally; model checkpoints,
+caches, large archives and live training logs are not published in Git.
 
 ## Exact assignments used by the recorded experiments
 
